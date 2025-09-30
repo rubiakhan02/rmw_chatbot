@@ -25,22 +25,22 @@ def convert_docx_to_json():
     print("📄 Reading DOCX...")
     doc = docx.Document(DOCX_PATH)
     
-    paragraphs = []
+    chunks_list = []
     for p in doc.paragraphs:
         text = clean_text(p.text)
         if not text:
             continue
         # Split long paragraphs
         chunks = split_into_chunks(text)
-        paragraphs.extend(chunks)
+        chunks_list.extend(chunks)
     
-    data = {"chunks": paragraphs}
     JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+    # Save as top-level list
     with open(JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        json.dump(chunks_list, f, indent=2, ensure_ascii=False)
 
-    print(f"✅ Saved {len(paragraphs)} chunks to {JSON_PATH}")
+    print(f"✅ Saved {len(chunks_list)} chunks to {JSON_PATH}")
 
 if __name__ == "__main__":
     convert_docx_to_json()

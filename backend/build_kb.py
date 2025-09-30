@@ -1,74 +1,55 @@
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
-
-import gradio as gr
+import os
 import json
 import pickle
-import faiss
-import re
 from pathlib import Path
+import faiss
 from sentence_transformers import SentenceTransformer
-import numpy as np
 
-# Paths
+# ------------------- Paths -------------------
 BASE_DIR = Path(__file__).resolve().parent
 KB_DIR = BASE_DIR / "kb"
+DATA_JSON = KB_DIR / "data.json"          # Your knowledge base JSON
 INDEX_PATH = KB_DIR / "faiss_index.bin"
 PICKLE_PATH = KB_DIR / "index.pkl"
-
-# Load model
 MODEL_NAME = "sentence-transformers/all-MiniLM-L12-v2"
+
+# Ensure kb directory exists
+os.makedirs(KB_DIR, exist_ok=True)
+
+# ------------------- Load JSON -------------------
+if not DATA_JSON.exists():
+    raise FileNotFoundError(f"{DATA_JSON} not found. Please create your JSON first!")
+
+with open(DATA_JSON, "r", encoding="utf-8") as f:
+    docs = json.load(f)
+
+# ------------------- Process documents -------------------
+texts = []
+for d in docs:
+    if isinstance(d, dict) and d.get("text"):
+        texts.append(d["text"].strip())
+    elif isinstance(d, str):
+        texts.append(d.strip())
+
+if not texts:
+    raise ValueError("No valid texts found in JSON!")
+
+print(f"📄 Loaded {len(texts)} documents.")
+
+# ------------------- Load model and embed -------------------
+print("📦 Loading SentenceTransformer model...")
 model = SentenceTransformer(MODEL_NAME)
+embeddings = model.encode(texts, convert_to_numpy=True)
+faiss.normalize_L2(embeddings)
 
-# Load chunks and FAISS index
-with open(PICKLE_PATH, "rb") as f:
-    chunks = pickle.load(f)
-index = faiss.read_index(str(INDEX_PATH))
+# ------------------- Build FAISS index -------------------
+print("🔍 Building FAISS index...")
+index = faiss.IndexFlatIP(embeddings.shape[1])
+index.add(embeddings)
 
-# Function to embed query
-def embed_text(text):
-    emb = model.encode([text], convert_to_numpy=True)
-    faiss.normalize_L2(emb)
-    return emb
+# ------------------- Save index and texts -------------------
+faiss.write_index(index, str(INDEX_PATH))  # Windows-safe
+with open(PICKLE_PATH, "wb") as f:
+    pickle.dump(texts, f)
 
-# Chat function
-def chat(query, top_k=5):
-    q_emb = embed_text(query)
-    D, I = index.search(q_emb, top_k)
-    results = [{"score": float(score), "text": chunks[idx]} 
-               for score, idx in zip(D[0], I[0]) if idx >= 0]
-
-    if not results:
-        return "Sorry, no answer found."
-
-    # Pattern-priority answers
-    query_lower = query.lower()
-    for r in results:
-        if any(x in query_lower for x in ["contact", "phone", "mobile"]):
-            match = re.search(r"(\+?\d[\d\s-]{8,}\d)", r["text"])
-            if match:
-                return match.group(1)
-        if any(x in query_lower for x in ["email", "mail"]):
-            match = re.search(r"[\w\.-]+@[\w\.-]+", r["text"])
-            if match:
-                return match.group(0)
-        if any(x in query_lower for x in ["address", "location"]):
-            if "address" in r["text"].lower():
-                return r["text"]
-
-    # Default: first 2 sentences
-    combined_text = " ".join([r["text"] for r in results])
-    sentences = re.split(r'(?<=[.!?]) +', combined_text)
-    answer = " ".join(sentences[:2]) if sentences else "No answer found."
-    return answer
-
-# Gradio interface
-iface = gr.Interface(
-    fn=chat,
-    inputs=[gr.Textbox(lines=2, placeholder="Ask me something...")],
-    outputs="text",
-    title="RMW Chatbot",
-    description="Ask anything from the knowledge base. Supports phone/email/address extraction."
-)
-
-iface.launch()
+print("✅ Knowledge base built successfully!")

@@ -6,13 +6,14 @@ import re
 DOCX_PATH = Path("backend/RMW Training Data 3.docx")
 JSON_PATH = Path("backend/kb/data.json")
 
-def split_into_chunks(text, max_words=80):
-    """Split text into chunks of max_words each."""
+def split_into_chunks(text, max_words=40, overlap=20):
+    """Split text into overlapping chunks of max_words each."""
     words = text.split()
     chunks = []
-    for i in range(0, len(words), max_words):
+    for i in range(0, len(words), max_words - overlap):
         chunk = " ".join(words[i:i+max_words])
-        chunks.append(chunk)
+        if chunk:
+            chunks.append(chunk)
     return chunks
 
 def clean_text(text):
@@ -30,13 +31,11 @@ def convert_docx_to_json():
         text = clean_text(p.text)
         if not text:
             continue
-        # Split long paragraphs
         chunks = split_into_chunks(text)
         chunks_list.extend(chunks)
     
     JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    # Save as top-level list
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(chunks_list, f, indent=2, ensure_ascii=False)
 

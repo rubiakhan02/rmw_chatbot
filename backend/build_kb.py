@@ -8,48 +8,55 @@ from sentence_transformers import SentenceTransformer
 # ------------------- Paths -------------------
 BASE_DIR = Path(__file__).resolve().parent
 KB_DIR = BASE_DIR / "kb"
-DATA_JSON = KB_DIR / "data.json"          # Your knowledge base JSON
+DATA_JSON = KB_DIR / "data.json"
 INDEX_PATH = KB_DIR / "faiss_index.bin"
 PICKLE_PATH = KB_DIR / "index.pkl"
-MODEL_NAME = "sentence-transformers/all-MiniLM-L12-v2"
 
-# Ensure kb directory exists
+# ------------------- Config -------------------
+MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"  # Strong embedding model
+MAX_WORDS_PER_CHUNK = 40  # adjust chunk size for better granularity
+
 os.makedirs(KB_DIR, exist_ok=True)
 
-# ------------------- Load JSON -------------------
+# ------------------- Load DOCX JSON -------------------
 if not DATA_JSON.exists():
-    raise FileNotFoundError(f"{DATA_JSON} not found. Please create your JSON first!")
+    raise FileNotFoundError(f"{DATA_JSON} not found. Run convert_docx_to_json.py first!")
 
 with open(DATA_JSON, "r", encoding="utf-8") as f:
     docs = json.load(f)
 
-# ------------------- Process documents -------------------
+# ------------------- Prepare texts -------------------
 texts = []
 for d in docs:
-    if isinstance(d, dict) and d.get("text"):
-        texts.append(d["text"].strip())
-    elif isinstance(d, str):
+    if isinstance(d, str):
         texts.append(d.strip())
+    elif isinstance(d, dict) and d.get("text"):
+        texts.append(d["text"].strip())
 
 if not texts:
     raise ValueError("No valid texts found in JSON!")
 
-print(f"📄 Loaded {len(texts)} documents.")
+print(f"📄 Loaded {len(texts)} chunks.")
 
-# ------------------- Load model and embed -------------------
-print("📦 Loading SentenceTransformer model...")
+# ------------------- Load embedding model -------------------
+print("📦 Loading embedding model...")
 model = SentenceTransformer(MODEL_NAME)
-embeddings = model.encode(texts, convert_to_numpy=True)
+
+# ------------------- Create embeddings -------------------
+print("📊 Encoding chunks...")
+embeddings = model.encode(texts, convert_to_numpy=True, show_progress_bar=True)
 faiss.normalize_L2(embeddings)
 
 # ------------------- Build FAISS index -------------------
 print("🔍 Building FAISS index...")
-index = faiss.IndexFlatIP(embeddings.shape[1])
+dim = embeddings.shape[1]  # Ensure correct dimension
+index = faiss.IndexFlatIP(dim)
 index.add(embeddings)
+print(f"✅ FAISS index built with {index.ntotal} vectors of dimension {dim}.")
 
 # ------------------- Save index and texts -------------------
-faiss.write_index(index, str(INDEX_PATH))  # Windows-safe
+faiss.write_index(index, str(INDEX_PATH))
 with open(PICKLE_PATH, "wb") as f:
     pickle.dump(texts, f)
 
-print("✅ Knowledge base built successfully!")
+print("✅ Knowledge base successfully built and saved!")

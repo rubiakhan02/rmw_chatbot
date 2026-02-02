@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from sentence_transformers import SentenceTransformer
+from flask_cors import CORS
 import numpy as np
 
 # ------------------ PATHS ------------------
@@ -21,6 +22,7 @@ MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
 
 # ------------------ FLASK APP ------------------
 app = Flask(__name__, static_folder="../static", static_url_path="/static")
+CORS(app)
 
 # ------------------ LOAD MODEL & KB ------------------
 print("📦 Loading embedding model...")

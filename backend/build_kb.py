@@ -4,6 +4,7 @@ import pickle
 from pathlib import Path
 import faiss
 from sentence_transformers import SentenceTransformer
+import re
 
 # ------------------- Paths -------------------
 BASE_DIR = Path(__file__).resolve().parent
@@ -13,30 +14,52 @@ INDEX_PATH = KB_DIR / "faiss_index.bin"
 PICKLE_PATH = KB_DIR / "index.pkl"
 
 # ------------------- Config -------------------
-MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"  # Strong embedding model
-MAX_WORDS_PER_CHUNK = 40  # adjust chunk size for better granularity
+MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
+CHUNK_SIZE = 200   # words per chunk (better for QA)
+CHUNK_OVERLAP = 30
 
 os.makedirs(KB_DIR, exist_ok=True)
 
-# ------------------- Load DOCX JSON -------------------
+# ------------------- Load JSON -------------------
 if not DATA_JSON.exists():
     raise FileNotFoundError(f"{DATA_JSON} not found. Run convert_docx_to_json.py first!")
 
 with open(DATA_JSON, "r", encoding="utf-8") as f:
     docs = json.load(f)
 
+# ------------------- Clean text -------------------
+def clean_text(text):
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+# ------------------- Chunking -------------------
+def chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
+    words = text.split()
+    chunks = []
+    i = 0
+    while i < len(words):
+        chunk = words[i:i + chunk_size]
+        chunks.append(" ".join(chunk))
+        i += chunk_size - overlap
+    return chunks
+
 # ------------------- Prepare texts -------------------
 texts = []
+
 for d in docs:
     if isinstance(d, str):
-        texts.append(d.strip())
+        d = clean_text(d)
+        if len(d.split()) > 5:
+            texts.extend(chunk_text(d))
     elif isinstance(d, dict) and d.get("text"):
-        texts.append(d["text"].strip())
+        d = clean_text(d["text"])
+        if len(d.split()) > 5:
+            texts.extend(chunk_text(d))
 
 if not texts:
     raise ValueError("No valid texts found in JSON!")
 
-print(f"📄 Loaded {len(texts)} chunks.")
+print(f"📄 Prepared {len(texts)} text chunks.")
 
 # ------------------- Load embedding model -------------------
 print("📦 Loading embedding model...")
@@ -49,9 +72,10 @@ faiss.normalize_L2(embeddings)
 
 # ------------------- Build FAISS index -------------------
 print("🔍 Building FAISS index...")
-dim = embeddings.shape[1]  # Ensure correct dimension
+dim = embeddings.shape[1]
 index = faiss.IndexFlatIP(dim)
 index.add(embeddings)
+
 print(f"✅ FAISS index built with {index.ntotal} vectors of dimension {dim}.")
 
 # ------------------- Save index and texts -------------------

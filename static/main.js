@@ -6,18 +6,19 @@ async function sendMessage() {
   addMessage('You', message);
   input.value = '';
 
-  const typingIndicator = addMessage('Bot', '', true); // typing animation
+  const typingIndicator = addMessage('Bot', '', true);
 
   try {
-    const res = await fetch('/chat', {
+    const res = await fetch('http://127.0.0.1:5000/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: message })
     });
+
     const data = await res.json();
 
     typingIndicator.remove();
-    addMessage('Bot', data.answer, false, data.sources);
+    addMessage('Bot', data.answer, false, data.sources || []);
 
   } catch (err) {
     console.error(err);
@@ -39,7 +40,7 @@ function addMessage(sender, text, isTyping = false, sources = []) {
     if (sources.length > 0) {
       const sourceDiv = document.createElement('div');
       sourceDiv.className = 'bot-source';
-      sourceDiv.textContent = `Source: ${sources.map(s => s.text).join(' | ')}`;
+      sourceDiv.textContent = `Source: ${sources.join(' | ')}`;
       msg.appendChild(sourceDiv);
     }
   }
@@ -49,6 +50,6 @@ function addMessage(sender, text, isTyping = false, sources = []) {
   return msg;
 }
 
-document.getElementById('user-input').addEventListener('keypress', function(e) {
+document.getElementById('user-input').addEventListener('keypress', function (e) {
   if (e.key === 'Enter') sendMessage();
 });

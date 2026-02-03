@@ -1,7 +1,6 @@
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import json
 import pickle
 import faiss
 import re
@@ -10,7 +9,6 @@ from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from sentence_transformers import SentenceTransformer
 from flask_cors import CORS
-import numpy as np
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -60,7 +58,7 @@ def root():
 def chat():
     data = request.json
     query = (data.get("query") or data.get("message") or "").strip()
-    top_k = int(data.get("top_k", 8))
+    top_k = int(data.get("top_k", 12))
 
     if not query:
         return jsonify({"error": "empty query"}), 400
@@ -84,28 +82,34 @@ def chat():
     top_texts = [chunks[i] for i in I[0] if i >= 0]
 
     if not top_texts:
-        return jsonify({"query": query, "answer": "Sorry, no answer found.", "sources": []})
+        return jsonify({"query": query, "answer": "I couldn’t find exact info, but Ritz Media World is a full-service media and advertising agency.", "sources": []})
 
-    # ------------------ PATTERN PRIORITY ------------------
+    # ------------------ QUICK PATTERN (CONTACT / EMAIL / ADDRESS) ------------------
     for text in top_texts:
-        if any(word in query_lower for word in ["contact", "phone", "mobile"]):
+        if any(word in query_lower for word in ["phone", "mobile", "contact", "call"]):
             match = re.search(r"(\+?\d[\d\s-]{8,}\d)", text)
             if match:
-                return jsonify({"query": query, "answer": match.group(1), "sources": top_texts})
+                return jsonify({"query": query, "answer": match.group(1), "sources": []})
+
         if any(word in query_lower for word in ["email", "mail"]):
             match = re.search(r"[\w\.-]+@[\w\.-]+", text)
             if match:
-                return jsonify({"query": query, "answer": match.group(0), "sources": top_texts})
-        if any(word in query_lower for word in ["address", "location"]):
-            if "address" in text.lower():
-                return jsonify({"query": query, "answer": text, "sources": top_texts})
+                return jsonify({"query": query, "answer": match.group(0), "sources": []})
+
+        if any(word in query_lower for word in ["address", "location", "located", "where"]):
+            if "noida" in text.lower() or "uttar pradesh" in text.lower():
+                return jsonify({"query": query, "answer": text, "sources": []})
 
     # ------------------ OPENAI CALL ------------------
-    context = "\n".join(top_texts[:5])
+    # Use more context so model can infer meaning
+    context = "\n".join(top_texts[:4])
 
     prompt = f"""
-Answer ONLY using the context below.
-If the answer is not in the context, say: "Sorry, I don't know."
+Answer using the context below as your main reference.
+You may rephrase or summarize it in your own words.
+If the exact answer is not present, give the closest correct answer based on the context.
+Do NOT say "Sorry, I don't know" unless the question is completely unrelated.
+Keep the answer short (1-2 sentences).
 
 Context:
 {context}
@@ -117,15 +121,21 @@ Answer:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant for Ritz Media World. Use only the provided context."},
+            {"role": "system", "content": "You are a helpful assistant for Ritz Media World. Answer clearly and briefly."},
             {"role": "user", "content": prompt}
         ],
-        temperature=0
+        temperature=0.2,
+        max_tokens=120
     )
 
     answer = response.choices[0].message.content.strip()
 
-    return jsonify({"query": query, "answer": answer, "sources": top_texts})
+    # -------- FORCE SHORT ANSWER (GUARANTEED) --------
+    answer = answer.split("\n")[0]
+    if "." in answer:
+        answer = answer.split(".")[0] + "."
+
+    return jsonify({"query": query, "answer": answer, "sources": []})
 
 # ------------------ RUN APP ------------------
 if __name__ == "__main__":

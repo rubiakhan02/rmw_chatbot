@@ -33,14 +33,11 @@ app = Flask(__name__, static_folder="../static", static_url_path="/static")
 CORS(app)
 
 # ------------------ LOAD MODEL & KB ------------------
-print("📦 Loading embedding model...")
 model = SentenceTransformer(MODEL_NAME)
 
-print("📄 Loading chunks...")
 with open(PICKLE_PATH, "rb") as f:
     chunks = pickle.load(f)
 
-print("🔍 Loading FAISS index...")
 index = faiss.read_index(str(INDEX_PATH))
 
 # ------------------ FUNCTIONS ------------------
@@ -58,58 +55,94 @@ def root():
 def chat():
     data = request.json
     query = (data.get("query") or data.get("message") or "").strip()
-    top_k = int(data.get("top_k", 12))
+    top_k = 12
 
     if not query:
         return jsonify({"error": "empty query"}), 400
 
     query_lower = query.lower()
 
-    # ------------------ GREETING ------------------
+    # -------- SMALL TALK --------
+    small_talk = ["how are you", "who are you", "what are you"]
+    if query_lower in small_talk:
+        return jsonify({"query": query, "answer": "I'm doing great! How can I help you with Ritz Media World?", "sources": []})
+
+    # -------- GREETING --------
     greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
     if query_lower in greetings:
+        return jsonify({"query": query, "answer": "Hello! This is Ritz Media Bot answering.", "sources": []})
+
+    # -------- PRICE / COST --------
+    if any(w in query_lower for w in ["price", "cost", "charge", "fees", "rate"]):
         return jsonify({
             "query": query,
-            "answer": "Hello! This is Ritz Media Bot answering.",
+            "answer": "Pricing depends on project requirements. Please contact Ritz Media World directly for an exact quotation.",
             "sources": []
         })
 
-    # ------------------ EMBEDDING ------------------
+    # -------- EMBEDDING --------
     q_emb = embed_text(query_lower)
 
-    # ------------------ FAISS SEARCH ------------------
+    # -------- FAISS SEARCH --------
     D, I = index.search(q_emb, top_k)
     top_texts = [chunks[i] for i in I[0] if i >= 0]
 
     if not top_texts:
-        return jsonify({"query": query, "answer": "I couldn’t find exact info, but Ritz Media World is a full-service media and advertising agency.", "sources": []})
+        return jsonify({
+            "query": query,
+            "answer": "I don’t have verified information on that right now. Please contact Ritz Media World directly for accurate details.",
+            "sources": []
+        })
 
-    # ------------------ QUICK PATTERN (CONTACT / EMAIL / ADDRESS) ------------------
-    for text in top_texts:
-        if any(word in query_lower for word in ["phone", "mobile", "contact", "call"]):
+    # -------- PHONE --------
+    if any(w in query_lower for w in ["phone", "call", "contact"]):
+        for text in top_texts:
             match = re.search(r"(\+?\d[\d\s-]{8,}\d)", text)
             if match:
                 return jsonify({"query": query, "answer": match.group(1), "sources": []})
 
-        if any(word in query_lower for word in ["email", "mail"]):
-            match = re.search(r"[\w\.-]+@[\w\.-]+", text)
+    # -------- EMAIL --------
+    if "email" in query_lower:
+        for text in top_texts:
+            match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
             if match:
                 return jsonify({"query": query, "answer": match.group(0), "sources": []})
 
-        if any(word in query_lower for word in ["address", "location", "located", "where"]):
-            if "noida" in text.lower() or "uttar pradesh" in text.lower():
-                return jsonify({"query": query, "answer": text, "sources": []})
+    # -------- ADDRESS --------
+    if any(w in query_lower for w in ["address", "location", "located", "where"]):
+        for text in top_texts:
+            if "noida" in text.lower():
+                address_match = re.search(r"(402–404.*?India)", text)
+                if address_match:
+                    return jsonify({"query": query, "answer": address_match.group(1), "sources": []})
 
-    # ------------------ OPENAI CALL ------------------
-    # Use more context so model can infer meaning
+    # -------- SERVICES LIST --------
+    if "list" in query_lower and "service" in query_lower:
+        services = [
+            "Digital Marketing",
+            "Creative & Branding",
+            "Print Advertising",
+            "Radio Advertising",
+            "Content Marketing",
+            "Web Development",
+            "Influencer Marketing",
+            "Celebrity Endorsements",
+            "Media Planning and Buying",
+            "Public Relations and Campaign Management"
+        ]
+        return jsonify({
+            "query": query,
+            "answer": "Here are the main services provided by Ritz Media World:\n- " + "\n- ".join(services),
+            "sources": []
+        })
+
+    # -------- OPENAI (GENERAL QUESTIONS) --------
     context = "\n".join(top_texts[:4])
 
     prompt = f"""
 Answer using the context below as your main reference.
-You may rephrase or summarize it in your own words.
-If the exact answer is not present, give the closest correct answer based on the context.
-Do NOT say "Sorry, I don't know" unless the question is completely unrelated.
-Keep the answer short (1-2 sentences).
+Rephrase in your own words.
+Keep the answer short and clear (1-2 sentences).
 
 Context:
 {context}
@@ -121,7 +154,7 @@ Answer:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant for Ritz Media World. Answer clearly and briefly."},
+            {"role": "system", "content": "You are a helpful assistant for Ritz Media World."},
             {"role": "user", "content": prompt}
         ],
         temperature=0.2,
@@ -129,8 +162,6 @@ Answer:
     )
 
     answer = response.choices[0].message.content.strip()
-
-    # -------- FORCE SHORT ANSWER (GUARANTEED) --------
     answer = answer.split("\n")[0]
     if "." in answer:
         answer = answer.split(".")[0] + "."

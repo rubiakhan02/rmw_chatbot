@@ -3,13 +3,13 @@ flask-cors==4.0.0
 gunicorn==21.2.0
 gradio==3.44.0
 python-docx==0.8.11
-lxml==6.0.2
+lxml==5.2.1
 langchain==0.2.12
 langchain-community==0.2.11
 langchain-huggingface==0.0.3
-transformers==4.44.2
-sentence-transformers==2.7.0
-faiss-cpu==1.12.0
+transformers==4.38.2
+sentence-transformers==2.6.1
+faiss-cpu==1.7.4
 numpy==1.26.4
 tqdm==4.66.1
 requests==2.32.5

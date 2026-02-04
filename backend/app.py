@@ -55,24 +55,38 @@ def root():
 def chat():
     data = request.json
     query = (data.get("query") or data.get("message") or "").strip()
-    top_k = 12
 
     if not query:
         return jsonify({"error": "empty query"}), 400
 
     query_lower = query.lower()
 
-    # -------- SMALL TALK --------
-    small_talk = ["how are you", "who are you", "what are you"]
-    if query_lower in small_talk:
-        return jsonify({"query": query, "answer": "I'm doing great! How can I help you with Ritz Media World?", "sources": []})
+    # ===== NORMAL CONVERSATION HANDLING =====
+    ack_words = ["ok", "okay", "thanks", "thank you", "good", "fine", "great"]
+    if query_lower in ack_words:
+        return jsonify({
+            "query": query,
+            "answer": "You're welcome 😊 How can I help you with Ritz Media World?",
+            "sources": []
+        })
 
-    # -------- GREETING --------
+    small_talk = ["how are you", "who are you", "what are you", "your age", "what is your age"]
+    if any(x in query_lower for x in small_talk):
+        return jsonify({
+            "query": query,
+            "answer": "I’m an AI assistant for Ritz Media World, here to help you with company information and services.",
+            "sources": []
+        })
+
     greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
     if query_lower in greetings:
-        return jsonify({"query": query, "answer": "Hello! This is Ritz Media Bot answering.", "sources": []})
+        return jsonify({
+            "query": query,
+            "answer": "Hello! This is Ritz Media Bot answering.",
+            "sources": []
+        })
 
-    # -------- PRICE / COST --------
+    # ===== PRICE QUESTIONS =====
     if any(w in query_lower for w in ["price", "cost", "charge", "fees", "rate"]):
         return jsonify({
             "query": query,
@@ -80,11 +94,9 @@ def chat():
             "sources": []
         })
 
-    # -------- EMBEDDING --------
+    # ===== VECTOR SEARCH =====
     q_emb = embed_text(query_lower)
-
-    # -------- FAISS SEARCH --------
-    D, I = index.search(q_emb, top_k)
+    D, I = index.search(q_emb, 12)
     top_texts = [chunks[i] for i in I[0] if i >= 0]
 
     if not top_texts:
@@ -94,21 +106,21 @@ def chat():
             "sources": []
         })
 
-    # -------- PHONE --------
+    # ===== PHONE =====
     if any(w in query_lower for w in ["phone", "call", "contact"]):
         for text in top_texts:
             match = re.search(r"(\+?\d[\d\s-]{8,}\d)", text)
             if match:
                 return jsonify({"query": query, "answer": match.group(1), "sources": []})
 
-    # -------- EMAIL --------
+    # ===== EMAIL =====
     if "email" in query_lower:
         for text in top_texts:
             match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
             if match:
                 return jsonify({"query": query, "answer": match.group(0), "sources": []})
 
-    # -------- ADDRESS --------
+    # ===== ADDRESS =====
     if any(w in query_lower for w in ["address", "location", "located", "where"]):
         for text in top_texts:
             if "noida" in text.lower():
@@ -116,7 +128,7 @@ def chat():
                 if address_match:
                     return jsonify({"query": query, "answer": address_match.group(1), "sources": []})
 
-    # -------- SERVICES LIST --------
+    # ===== SERVICES LIST =====
     if "list" in query_lower and "service" in query_lower:
         services = [
             "Digital Marketing",
@@ -136,12 +148,11 @@ def chat():
             "sources": []
         })
 
-    # -------- OPENAI (GENERAL QUESTIONS) --------
+    # ===== OPENAI FOR DESCRIPTION =====
     context = "\n".join(top_texts[:4])
 
     prompt = f"""
-Answer using the context below as your main reference.
-Rephrase in your own words.
+Answer based on the context below.
 Keep the answer short and clear (1-2 sentences).
 
 Context:
@@ -170,5 +181,4 @@ Answer:
 
 # ------------------ RUN APP ------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)

@@ -1,0 +1,6 @@
+services:
+  - type: web
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn backend.app:app
+    runtime: python3.11

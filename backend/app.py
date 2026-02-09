@@ -5,6 +5,7 @@ import pickle
 import faiss
 import re
 import os
+import requests
 from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from sentence_transformers import SentenceTransformer
@@ -51,6 +52,46 @@ def embed_text(text):
 def root():
     return send_from_directory(app.static_folder, "index.html")
 
+
+# =====================================================
+# ⭐⭐⭐ PROXY ROUTE FOR LEAD FORM ⭐⭐⭐
+# =====================================================
+@app.route("/submit-lead", methods=["POST"])
+def submit_lead():
+
+    data = request.json
+
+    # Structured message storing selected service
+    formatted_message = (
+        f"Source: Chatbot\n"
+        f"Selected Service: {data.get('service')}\n\n"
+        f"User Message:\n{data.get('message') or 'N/A'}"
+    )
+
+    payload = {
+        "etype": "ContactUs",
+        "name": data.get("name"),
+        "phone": data.get("phone"),
+        "email": data.get("email"),
+        "message": formatted_message
+    }
+
+    try:
+        r = requests.post(
+            "https://ritzmediaworld.com/api/system-settings/contact-enquiry",
+            json=payload,
+            timeout=12
+        )
+
+        return jsonify(r.json())
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.json
@@ -74,7 +115,7 @@ def chat():
     if any(x in query_lower for x in small_talk):
         return jsonify({
             "query": query,
-            "answer": "I’m an AI assistant for Ritz Media World, here to help you with company information and services.",
+            "answer": "I’m Ruby an AI assistant for Ritz Media World, here to help you with company information and services.",
             "sources": []
         })
 
@@ -82,7 +123,7 @@ def chat():
     if query_lower in greetings:
         return jsonify({
             "query": query,
-            "answer": "Hello! This is Ritz Media Bot answering.",
+            "answer": "Hello! This is Ruby answering.",
             "sources": []
         })
 
@@ -179,6 +220,7 @@ Answer:
 
     return jsonify({"query": query, "answer": answer, "sources": []})
 
+
 # ------------------ RUN APP ------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=80, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=True)

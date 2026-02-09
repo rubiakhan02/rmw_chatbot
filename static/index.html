@@ -15,7 +15,7 @@
   <div class="chat-wrapper">
     <div class="chat-header">
       <img src="/static/images/rmw-final-logo.png" alt="Bot Avatar" class="avatar" />
-      <h2>RMW AI Chatbot</h2>
+      <h2>Ruby</h2>
     </div>
 
     <div id="chat-box" class="chat-box"></div>
@@ -36,9 +36,23 @@
 
       <h3>Share your details</h3>
 
-      <input id="leadName" placeholder="Name" />
-      <input id="leadPhone" placeholder="Phone Number" />
-      <input id="leadEmail" placeholder="Email Address" />
+      <input id="leadName" placeholder="Name *" />
+      <input id="leadPhone" placeholder="Phone Number *" />
+      <input id="leadEmail" placeholder="Email Address *" />
+
+      <!-- ⭐ NEW SERVICE DROPDOWN -->
+      <select id="leadService">
+        <option value="">Select Service *</option>
+        <option>Digital marketing</option>
+        <option>Creative services</option>
+        <option>Print advertising</option>
+        <option>Radio advertising</option>
+        <option>Content marketing</option>
+        <option>Web development</option>
+        <option>Celebrity endorsements</option>
+        <option>Influencer marketing</option>
+      </select>
+
       <textarea id="leadMsg" placeholder="Message (optional)"></textarea>
 
       <p id="leadError" class="lead-error"></p>

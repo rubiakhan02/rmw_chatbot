@@ -1,6 +1,7 @@
 import os
 import pickle
 import faiss
+import re
 from sentence_transformers import SentenceTransformer
 from pathlib import Path
 from docx import Document
@@ -15,29 +16,42 @@ PICKLE_PATH = KB_DIR / "index.pkl"
 MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
 model = SentenceTransformer(MODEL_NAME)
 
+
 # -------- READ DOCX --------
 def read_docx(file_path):
     doc = Document(file_path)
-    text = ""
-    for para in doc.paragraphs:
-        text += para.text + "\n"
-    return text
+    return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
 
-# -------- READ WEBSITE DATA --------
+
+# -------- READ WEBSITE --------
 def read_website_txt(file_path):
     if not os.path.exists(file_path):
         return ""
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
 
-# -------- CHUNK TEXT --------
-def chunk_text(text, chunk_size=500):
+
+# -------- SMART CHUNKING --------
+def smart_chunk(text, size=500, overlap=80):
+
+    # split into sentences
+    sentences = re.split(r'(?<=[.!?]) +', text)
+
     chunks = []
-    for i in range(0, len(text), chunk_size):
-        chunk = text[i:i+chunk_size]
-        if len(chunk.strip()) > 50:
-            chunks.append(chunk)
+    current = ""
+
+    for s in sentences:
+        if len(current) + len(s) < size:
+            current += " " + s
+        else:
+            chunks.append(current.strip())
+            current = current[-overlap:] + s
+
+    if current:
+        chunks.append(current.strip())
+
     return chunks
+
 
 # -------- MAIN --------
 print("Loading data...")
@@ -48,10 +62,14 @@ website_file = BASE_DIR / "website_data.txt"
 docx_text = read_docx(docx_file)
 website_text = read_website_txt(website_file)
 
+# Tag sources
+docx_text = "[DOCX]\n" + docx_text
+website_text = "[WEBSITE]\n" + website_text
+
 combined_text = docx_text + "\n" + website_text
 
 print("Chunking text...")
-chunks = chunk_text(combined_text)
+chunks = smart_chunk(combined_text)
 
 print("Total chunks:", len(chunks))
 
@@ -63,10 +81,10 @@ faiss.normalize_L2(embeddings)
 index = faiss.IndexFlatIP(embeddings.shape[1])
 index.add(embeddings)
 
-print("Saving index and chunks...")
+print("Saving index...")
 faiss.write_index(index, str(INDEX_PATH))
 
 with open(PICKLE_PATH, "wb") as f:
     pickle.dump(chunks, f)
 
-print("DONE. Knowledge base updated with DOCX + Website data.")
+print("✅ DONE — Improved KB built")

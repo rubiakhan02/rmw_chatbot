@@ -41,11 +41,25 @@ with open(PICKLE_PATH, "rb") as f:
 
 index = faiss.read_index(str(INDEX_PATH))
 
+
 # ------------------ FUNCTIONS ------------------
+
 def embed_text(text):
     emb = model.encode([text], convert_to_numpy=True)
     faiss.normalize_L2(emb)
     return emb
+
+
+# ⭐ SELECT BEST CONTEXT (NEW)
+def select_best_chunks(indices):
+    texts = [chunks[i] for i in indices if i >= 0]
+
+    # Rank by richness (longer chunks first)
+    texts.sort(key=len, reverse=True)
+
+    # Return top meaningful chunks
+    return texts[:6]
+
 
 # ------------------ ROUTES ------------------
 @app.route("/")
@@ -53,15 +67,12 @@ def root():
     return send_from_directory(app.static_folder, "index.html")
 
 
-# =====================================================
-# ⭐⭐⭐ PROXY ROUTE FOR LEAD FORM ⭐⭐⭐
-# =====================================================
+# ================= LEAD PROXY =================
 @app.route("/submit-lead", methods=["POST"])
 def submit_lead():
 
     data = request.json
 
-    # Structured message storing selected service
     formatted_message = (
         f"Source: Chatbot\n"
         f"Selected Service: {data.get('service')}\n\n"
@@ -82,18 +93,16 @@ def submit_lead():
             json=payload,
             timeout=12
         )
-
         return jsonify(r.json())
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
+# ================= CHAT =================
 @app.route("/chat", methods=["POST"])
 def chat():
+
     data = request.json
     query = (data.get("query") or data.get("message") or "").strip()
 
@@ -102,99 +111,65 @@ def chat():
 
     query_lower = query.lower()
 
-    # ===== NORMAL CONVERSATION HANDLING =====
-    ack_words = ["ok", "okay", "thanks", "thank you", "good", "fine", "great"]
-    if query_lower in ack_words:
+    # ===== SIMPLE RESPONSES =====
+    if query_lower in ["ok","okay","thanks","thank you","good","fine","great"]:
+        return jsonify({"query": query,
+                        "answer": "You're welcome 😊 How can I help you?",
+                        "sources": []})
+
+    if any(x in query_lower for x in ["how are you","who are you","what are you"]):
+        return jsonify({"query": query,
+                        "answer": "I’m Ruby, AI assistant for Ritz Media World.",
+                        "sources": []})
+
+    if query_lower in ["hi","hello","hey"]:
+        return jsonify({"query": query,
+                        "answer": "Hello! This is Ruby answering.",
+                        "sources": []})
+
+    if any(w in query_lower for w in ["price","cost","charge"]):
         return jsonify({
             "query": query,
-            "answer": "You're welcome 😊 How can I help you with Ritz Media World?",
+            "answer": "Pricing depends on requirements. Please contact the team for a quote.",
             "sources": []
         })
 
-    small_talk = ["how are you", "who are you", "what are you", "your age", "what is your age"]
-    if any(x in query_lower for x in small_talk):
-        return jsonify({
-            "query": query,
-            "answer": "I’m Ruby an AI assistant for Ritz Media World, here to help you with company information and services.",
-            "sources": []
-        })
-
-    greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
-    if query_lower in greetings:
-        return jsonify({
-            "query": query,
-            "answer": "Hello! This is Ruby answering.",
-            "sources": []
-        })
-
-    # ===== PRICE QUESTIONS =====
-    if any(w in query_lower for w in ["price", "cost", "charge", "fees", "rate"]):
-        return jsonify({
-            "query": query,
-            "answer": "Pricing depends on project requirements. Please contact Ritz Media World directly for an exact quotation.",
-            "sources": []
-        })
-
-    # ===== VECTOR SEARCH =====
+    # ===== VECTOR SEARCH (IMPROVED) =====
     q_emb = embed_text(query_lower)
-    D, I = index.search(q_emb, 12)
-    top_texts = [chunks[i] for i in I[0] if i >= 0]
+    D, I = index.search(q_emb, 20)
 
-    if not top_texts:
+    best_chunks = select_best_chunks(I[0])
+
+    if not best_chunks:
         return jsonify({
             "query": query,
-            "answer": "I don’t have verified information on that right now. Please contact Ritz Media World directly for accurate details.",
+            "answer": "I couldn’t find verified info. Please contact Ritz Media World directly.",
             "sources": []
         })
 
-    # ===== PHONE =====
-    if any(w in query_lower for w in ["phone", "call", "contact"]):
-        for text in top_texts:
+    # ===== CONTACT EXTRACTION =====
+    for text in best_chunks:
+        if "phone" in query_lower:
             match = re.search(r"(\+?\d[\d\s-]{8,}\d)", text)
             if match:
                 return jsonify({"query": query, "answer": match.group(1), "sources": []})
 
-    # ===== EMAIL =====
-    if "email" in query_lower:
-        for text in top_texts:
+        if "email" in query_lower:
             match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
             if match:
                 return jsonify({"query": query, "answer": match.group(0), "sources": []})
 
-    # ===== ADDRESS =====
-    if any(w in query_lower for w in ["address", "location", "located", "where"]):
-        for text in top_texts:
-            if "noida" in text.lower():
-                address_match = re.search(r"(402–404.*?India)", text)
-                if address_match:
-                    return jsonify({"query": query, "answer": address_match.group(1), "sources": []})
-
-    # ===== SERVICES LIST =====
-    if "list" in query_lower and "service" in query_lower:
-        services = [
-            "Digital Marketing",
-            "Creative & Branding",
-            "Print Advertising",
-            "Radio Advertising",
-            "Content Marketing",
-            "Web Development",
-            "Influencer Marketing",
-            "Celebrity Endorsements",
-            "Media Planning and Buying",
-            "Public Relations and Campaign Management"
-        ]
-        return jsonify({
-            "query": query,
-            "answer": "Here are the main services provided by Ritz Media World:\n- " + "\n- ".join(services),
-            "sources": []
-        })
-
-    # ===== OPENAI FOR DESCRIPTION =====
-    context = "\n".join(top_texts[:4])
+    # ===== OPENAI ANSWER =====
+    context = "\n".join(best_chunks)
 
     prompt = f"""
-Answer based on the context below.
-Keep the answer short and clear (1-2 sentences).
+You are an expert assistant for Ritz Media World.
+
+RULES:
+- Answer ONLY using context
+- If unsure say you don't know
+- Highlight services clearly
+- Be concise and professional
 
 Context:
 {context}
@@ -206,21 +181,18 @@ Answer:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant for Ritz Media World."},
-            {"role": "user", "content": prompt}
+            {"role":"system","content":"You help users with Ritz Media World info."},
+            {"role":"user","content":prompt}
         ],
-        temperature=0.2,
-        max_tokens=120
+        temperature=0.15,
+        max_tokens=150
     )
 
     answer = response.choices[0].message.content.strip()
-    answer = answer.split("\n")[0]
-    if "." in answer:
-        answer = answer.split(".")[0] + "."
 
     return jsonify({"query": query, "answer": answer, "sources": []})
 
 
-# ------------------ RUN APP ------------------
+# ------------------ RUN ------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

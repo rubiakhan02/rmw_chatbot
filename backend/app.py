@@ -114,10 +114,10 @@ def chat():
     # ===== SIMPLE RESPONSES =====
     if query_lower in ["ok","okay","thanks","thank you","good","fine","great"]:
         return jsonify({"query": query,
-                        "answer": "You're welcome 😊 How can I help you?",
+                        "answer": "Glad I could help!😊 Let me know if there's anything else I can assist you with.",
                         "sources": []})
 
-    if any(x in query_lower for x in ["how are you","who are you","what are you"]):
+    if any(x in query_lower for x in ["who are you","what are you"]):
         return jsonify({"query": query,
                         "answer": "I’m Ruby, AI assistant for Ritz Media World.",
                         "sources": []})
@@ -127,7 +127,7 @@ def chat():
                         "answer": "Hello! This is Ruby answering.",
                         "sources": []})
 
-    if any(w in query_lower for w in ["price","cost","charge"]):
+    if any(w in query_lower for w in ["price","cost","charge","pricing","rates","rate","charges","how much"]):
         return jsonify({
             "query": query,
             "answer": "Pricing depends on requirements. Please contact the team for a quote.",

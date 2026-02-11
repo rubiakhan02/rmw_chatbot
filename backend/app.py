@@ -134,67 +134,121 @@ def chat():
             "sources": []
         })
 
-    # ===== VECTOR SEARCH (IMPROVED) =====
-    q_emb = embed_text(query_lower)
-    D, I = index.search(q_emb, 20)
+    
+    try:
+        # ===== VECTOR SEARCH (IMPROVED) =====
+        q_emb = embed_text(query_lower)
+        D, I = index.search(q_emb, 20)
 
-    best_chunks = select_best_chunks(I[0])
+        # SAFE similarity score check (prevents crash)
+        top_score = 0
+        if len(D) > 0 and len(D[0]) > 0:
+            top_score = float(D[0][0])
 
-    if not best_chunks:
-        return jsonify({
-            "query": query,
-            "answer": "I couldn’t find verified info. Please contact Ritz Media World directly.",
-            "sources": []
-        })
 
-    # ===== CONTACT EXTRACTION =====
-    for text in best_chunks:
-        if "phone" in query_lower:
-            match = re.search(r"(\+?\d[\d\s-]{8,}\d)", text)
-            if match:
-                return jsonify({"query": query, "answer": match.group(1), "sources": []})
+        # ⭐ threshold tuning
+        if top_score < 0.35:
+            best_chunks = []
+        else:
+            best_chunks = select_best_chunks(I[0])
 
-        if "email" in query_lower:
-            match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
-            if match:
-                return jsonify({"query": query, "answer": match.group(0), "sources": []})
 
-    # ===== OPENAI ANSWER =====
-    context = "\n".join(best_chunks)
+        if not best_chunks:
 
-    prompt = f"""
-You are an expert assistant for Ritz Media World.
+            # ===== GENERAL OPENAI FALLBACK (Conversation) =====
+            try:
+                system_instruction = {
+                    "role": "system",
+                    "content": "You are Ruby, a friendly AI assistant for Ritz Media World. Start a polite conversation if the user greets you. IMPORTANT: If the user asks for 'your' contact (email/phone/address), provide Ritz Media World's contact details. Never say you don't have personal info."
+                }
+                
+                # Get history from request
+                history = data.get("history", [])
+                
+                # Construct messages: System + History
+                # If history is empty/invalid, fall back to just query
+                if isinstance(history, list) and len(history) > 0:
+                    messages = [system_instruction] + history
+                else:
+                    messages = [
+                        system_instruction,
+                        {"role": "user", "content": query}
+                    ]
 
-RULES:
-- Answer ONLY using context
-- If unsure say you don't know
-- Highlight services clearly
-- Be concise and professional
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=150
+                )
+                answer = response.choices[0].message.content.strip()
+            except Exception as e:
+                print(f"OpenAI Fallback Error: {e}")
+                answer = "I'm having trouble thinking right now. Please try again later."
 
-Context:
-{context}
 
-Question: {query}
-Answer:
-"""
+            return jsonify({
+                "query": query,
+                "answer": answer,
+                "sources": []
+            })
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role":"system","content":"You help users with Ritz Media World info."},
-            {"role":"user","content":prompt}
-        ],
-        temperature=0.15,
-        max_tokens=150
-    )
 
-    answer = response.choices[0].message.content.strip()
 
-    return jsonify({"query": query, "answer": answer, "sources": []})
+        # ===== CONTACT EXTRACTION =====
+        for text in best_chunks:
+            if "phone" in query_lower:
+                match = re.search(r"(\+?\d[\d\s-]{8,}\d)", text)
+                if match:
+                    return jsonify({"query": query, "answer": match.group(1), "sources": []})
+
+            if "email" in query_lower:
+                match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
+                if match:
+                    return jsonify({"query": query, "answer": match.group(0), "sources": []})
+
+        # ===== OPENAI ANSWER (Context-Aware) =====
+        context = "\n".join(best_chunks)
+
+        prompt = f"""
+    You are Ruby, AI assistant for Ritz Media World.
+    Be helpful, conversational, and professional.
+    Explain clearly in a polite tone.
+
+
+    RULES:
+    - Primary Source: Use the Context below.
+    - If the user is just chatting (e.g. "nice weather"), reply politely without context.
+    - IMPORTANT: If the user asks for 'your' contact details (email, phone, address), ALWAYS provide Ritz Media World's contact details from the context.
+    - Highlight services clearly.
+    - Be concise.
+
+    Context:
+    {context}
+
+    Question: {query}
+    Answer:
+    """
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role":"system","content":"You help users with Ritz Media World info."},
+                {"role":"user","content":prompt}
+            ],
+            temperature=0.3,
+            max_tokens=200
+        )
+
+        answer = response.choices[0].message.content.strip()
+
+        return jsonify({"query": query, "answer": answer, "sources": []})
+
+    except Exception as e:
+        print(f"Chat Error: {e}")
+        return jsonify({"error": str(e), "answer": "Something went wrong internally."}), 500
 
 
 # ------------------ RUN ------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
-
-

@@ -126,6 +126,8 @@ function checkSubServices(message) {
 
 // ================= CHAT FUNCTION =================
 
+let chatHistory = []; // Store last few messages
+
 async function sendMessage() {
 
   const input = document.getElementById('user-input');
@@ -165,7 +167,10 @@ async function sendMessage() {
     const res = await fetch('http://127.0.0.1:5000/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: message })
+      body: JSON.stringify({
+        query: message,
+        history: chatHistory
+      })
     });
 
     const data = await res.json();
@@ -199,6 +204,12 @@ function addMessage(sender, text, isTyping = false, sources = []) {
     msg.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
   } else {
     msg.textContent = text;
+
+    // Add to history (keep last 6 messages)
+    if (!isTyping && text) {
+      chatHistory.push({ role: sender === 'You' ? 'user' : 'assistant', content: text });
+      if (chatHistory.length > 6) chatHistory.shift();
+    }
 
     if (sources.length > 0) {
       const sourceDiv = document.createElement('div');

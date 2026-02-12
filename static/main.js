@@ -164,9 +164,11 @@ async function sendMessage() {
   const typingIndicator = addMessage('Bot', '', true);
 
   try {
-    const res = await fetch('http://127.0.0.1:5000/chat', {
+    const res = await fetch('/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
         query: message,
         history: chatHistory
@@ -190,7 +192,10 @@ async function sendMessage() {
     typingIndicator.remove();
     addMessage('Bot', 'Sorry, something went wrong.');
   }
+
+
 }
+
 
 
 // ================= MESSAGE UI =================

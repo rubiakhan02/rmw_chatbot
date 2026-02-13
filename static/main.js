@@ -307,22 +307,20 @@ async function submitLead() {
   const message = document.getElementById("leadMsg").value.trim();
 
   try {
-    const response = await fetch(
-      "http://127.0.0.1:5000/submit-lead",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          phone,
-          email,
-          service,
-          message
-        })
-      }
-    );
+    const response = await fetch("/submit-lead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        phone,
+        email,
+        service,
+        message
+      })
+    });
 
     const result = await response.json();
+
 
     if (result.success) {
       closeLeadModal();
@@ -370,4 +368,4 @@ I’m here to help you 🙂`
     );
   }, 800);
 
-});   
+}); 

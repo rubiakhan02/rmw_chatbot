@@ -225,7 +225,71 @@ button:hover {
 }
 
 /* ===================================================== */
-/* ================= LEAD MODAL STYLING ================= */
+/* ================= INLINE LEAD FORM ================= */
+/* ===================================================== */
+
+.inline-lead-form-wrapper {
+  max-width: 100% !important;
+  padding: 0 !important;
+  background: transparent !important;
+  align-self: stretch !important;
+}
+
+.inline-lead-form-wrapper .lead-content {
+  background: white;
+  padding: 20px;
+  border-radius: 14px;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeIn 0.3s ease;
+}
+
+.inline-lead-form-wrapper .lead-content h3 {
+  margin: 0;
+  text-align: center;
+  color: #333;
+  font-size: 1.1em;
+}
+
+.inline-lead-form-wrapper .lead-content input,
+.inline-lead-form-wrapper .lead-content textarea,
+.inline-lead-form-wrapper .lead-content select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.inline-lead-form-wrapper .lead-content input:focus,
+.inline-lead-form-wrapper .lead-content textarea:focus,
+.inline-lead-form-wrapper .lead-content select:focus {
+  border-color: #007bff;
+}
+
+.inline-lead-form-wrapper .lead-buttons {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inline-lead-form-wrapper .lead-buttons button {
+  flex: 1;
+}
+
+.inline-lead-form-wrapper .lead-error {
+  color: red;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ===================================================== */
+/* ================= LEAD MODAL STYLING (FALLBACK) ===== */
 /* ===================================================== */
 
 .lead-modal {

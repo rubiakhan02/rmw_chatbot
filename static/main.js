@@ -251,14 +251,67 @@ function addEnquireButton() {
   chatBox.appendChild(wrapper);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
-// ================= LEAD MODAL =================
+// ================= LEAD FORM INLINE =================
 
 function openLeadModal() {
-  document.getElementById("leadModal").style.display = "flex";
+  // Check if form already exists in chat
+  const existingForm = document.getElementById('inline-lead-form');
+  if (existingForm) {
+    existingForm.scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+
+  const chatBox = document.getElementById('chat-box');
+
+  const formWrapper = document.createElement('div');
+  formWrapper.className = 'message bot-message inline-lead-form-wrapper';
+  formWrapper.id = 'inline-lead-form';
+
+  formWrapper.innerHTML = `
+    <div class="lead-content">
+      <h3>Share your details</h3>
+      
+      <input id="leadName" placeholder="Name *" />
+      <input id="leadPhone" placeholder="Phone Number *" />
+      <input id="leadEmail" placeholder="Email Address *" />
+      
+      <select id="leadService">
+        <option value="">Select Service *</option>
+        <option>Digital marketing</option>
+        <option>Creative services</option>
+        <option>Print advertising</option>
+        <option>Radio advertising</option>
+        <option>Content marketing</option>
+        <option>Web development</option>
+        <option>Celebrity endorsements</option>
+        <option>Influencer marketing</option>
+      </select>
+      
+      <textarea id="leadMsg" placeholder="Message (optional)"></textarea>
+      
+      <p id="leadError" class="lead-error"></p>
+      
+      <div class="lead-buttons">
+        <button onclick="submitLead()">Submit</button>
+        <button onclick="closeLeadModal()">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  chatBox.appendChild(formWrapper);
+  chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function closeLeadModal() {
-  document.getElementById("leadModal").style.display = "none";
+  const inlineForm = document.getElementById('inline-lead-form');
+  if (inlineForm) {
+    inlineForm.remove();
+  }
+  // Also hide the old modal if it exists
+  const modal = document.getElementById("leadModal");
+  if (modal) {
+    modal.style.display = "none";
+  }
 }
 
 

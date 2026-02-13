@@ -41,6 +41,33 @@ body {
   border-radius: 50%;
 }
 
+.enquire-container {
+  display: flex;
+  justify-content: flex-end;
+  padding: 5px 10px;
+  background: #f0f0f0;
+}
+
+.fixed-enquire-btn {
+  padding: 10px 15px;
+  margin-left: 10px;
+  border-radius: 20px;
+  border: none;
+  background-color: #ffc107;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fixed-enquire-btn:hover {
+  background-color: #e0a800;
+}
+
+.fixed-enquire-btn:active {
+  transform: scale(0.98);
+}
+
 /* ================= CHAT BOX ================= */
 
 .chat-box {
